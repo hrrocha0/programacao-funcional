@@ -1,0 +1,17 @@
+name: LF1
+version: 1.0.0
+
+dependencies:
+  - base >= 4.7 && < 5
+  - array
+
+ghc-options:
+  - -Wdefault
+
+executables:
+  Interpret:
+    source-dirs: src
+    main: Interpret.hs
+    build-tools:
+      - alex
+      - happy
