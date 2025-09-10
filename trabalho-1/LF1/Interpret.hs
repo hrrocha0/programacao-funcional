@@ -1,20 +1,18 @@
 module Main where
 
-import LexLF
-import ParLF
-import AbsLF
 import Interpreter
 
+import AbsLF
+import LexLF
+import ParLF
 import ErrM
 
+main :: IO ()
 main = do
   interact calc
   putStrLn ""
 
-calc s = case (pProgram  (myLexer s)) of
-           Ok p -> show (executeP p)
-           Bad s -> show s
-{-    
-  let Ok p = pProgram  (myLexer s) 
-  in show (executeP p)
--}  
+calc :: String -> String
+calc s = case pProgram (myLexer s) of
+  Ok p -> show (executeP p)
+  Bad s -> show s
