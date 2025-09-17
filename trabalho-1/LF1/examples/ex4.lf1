@@ -1,0 +1,11 @@
+main () {
+    fib (10)
+}
+
+fib (n) {
+    if (n)
+        then if (n - 1)
+            then fib (n - 1) + fib (n - 2)
+            else 1
+        else 1
+}

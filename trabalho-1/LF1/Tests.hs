@@ -48,3 +48,29 @@ fat (n)
 -}
 test3 :: Program
 test3 = Prog [Fun (Ident "main") [] (ECall (Ident "fat") [EInt 5]), Fun (Ident "fat") [Ident "n"] (EIf (EVar (Ident "n")) (EMul (EVar (Ident "n")) (ECall (Ident "fat") [ESub (EVar (Ident "n")) (EInt 1)])) (EInt 1))]
+
+{- Entradas: x
+main () {
+    fib (x)
+}
+fib (n) {
+    if (n)
+        then if (n - 1)
+            then fib (n - 1) + fib (n - 2)
+            else 1
+        else 1
+}
+-}
+test4 :: Integer -> Program
+test4 x = Prog [Fun (Ident "main") [] (ECall (Ident "fib") [EInt x]), Fun (Ident "fib") [Ident "n"] (EIf (EVar (Ident "n")) (EIf (ESub (EVar (Ident "n")) (EInt 1)) (EAdd (ECall (Ident "fib") [ESub (EVar (Ident "n")) (EInt 1)]) (ECall (Ident "fib") [ESub (EVar (Ident "n")) (EInt 2)])) (EInt 1)) (EInt 1))]
+
+{- Entradas: s
+main () {
+    greet ("LF1")
+}
+greet (name) {
+    "Hello, " ++ name ++ "!"
+}
+-}
+test5 :: String -> Program
+test5 s = Prog [Fun (Ident "main") [] (ECall (Ident "greet") [EStr s]), Fun (Ident "greet") [Ident "name"] (ECon (ECon (EStr "Hello, ") (EVar (Ident "name"))) (EStr "!"))]

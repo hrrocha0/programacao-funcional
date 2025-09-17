@@ -1,0 +1,7 @@
+main () {
+    greet ("LF1")
+}
+
+greet (name) {
+    "Hello, " ++ name ++ "!"
+}

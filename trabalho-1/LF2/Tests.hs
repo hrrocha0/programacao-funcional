@@ -48,3 +48,31 @@ int fat (int n)
 -}
 test3 :: Program
 test3 = Prog [Fun Tint (Ident "main") [] (ECall (Ident "fat") [EInt 5]), Fun Tint (Ident "fat") [Dec Tint (Ident "n")] (EIf (EVar (Ident "n")) (EMul (EVar (Ident "n")) (ECall (Ident "fat") [ESub (EVar (Ident "n")) (EInt 1)])) (EInt 1))]
+
+{- Entradas: int x
+int main () {
+    fib (10)
+}
+int fib (int n) {
+    if (n)
+        then if (n - 1)
+            then fib (n - 1) + fib (n - 2)
+            else 1
+        else 1
+}
+-}
+test4 :: Integer -> Program
+test4 x = Prog [Fun Tint (Ident "main") [] (ECall (Ident "fib") [EInt x]), Fun Tint (Ident "fib") [Dec Tint (Ident "n")] (EIf (EVar (Ident "n")) (EIf (ESub (EVar (Ident "n")) (EInt 1)) (EAdd (ECall (Ident "fib") [ESub (EVar (Ident "n")) (EInt 1)]) (ECall (Ident "fib") [ESub (EVar (Ident "n")) (EInt 2)])) (EInt 1)) (EInt 1))]
+
+{- Entradas: String s
+String main () {
+    greet ("LF2")
+}
+String greet (String name) {
+    if (1)
+        then "Hello, " ++ name ++ "!"
+        else "ERROR"
+}
+-}
+test5 :: String -> Program
+test5 s = Prog [Fun TStr (Ident "main") [] (ECall (Ident "greet") [EStr s]), Fun TStr (Ident "greet") [Dec TStr (Ident "name")] (EIf (EInt 1) (ECon (ECon (EStr "Hello, ") (EVar (Ident "name"))) (EStr "!")) (EStr "ERROR"))]
