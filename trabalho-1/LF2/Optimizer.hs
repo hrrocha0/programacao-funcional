@@ -9,6 +9,11 @@ optimizeP (Prog fs) = Prog (map optimizeF fs)
 optimizeF :: Function -> Function
 optimizeF (Fun tR id decls exp) = Fun tR id decls (optimizeE exp)
 
+{-
+As chamadas de função ECall podem ser otimizadas ao otimizar recursivamente os seus parâmetros, quando 
+possível. A expressão da própria função é otimizada pela "optimizeF". Como a otimização não ocorre em tempo
+de execução, não possui acesso ao contexto e portanto não pode avaliar a expressão.
+-}
 optimizeE :: Exp -> Exp
 optimizeE exp = case exp of
   EStr str -> EStr str

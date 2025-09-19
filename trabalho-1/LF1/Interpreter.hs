@@ -14,6 +14,11 @@ getParams (Fun _ params _) = params
 getExp :: Function -> Exp
 getExp (Fun _ _ exp) = exp
 
+{-
+A função "executeP" passa a evaluar uma expressão, uma vez que não existem statements na LF1. 
+Além disso, passa a retornar o resultado da avaliação e não mais o contexto,
+pois a linguagem funcional não possui variáveis.
+-}
 executeP :: Program -> Valor
 executeP (Prog fs) = eval (updatecF [] fs) (expMain fs)
   where
@@ -21,6 +26,14 @@ executeP (Prog fs) = eval (updatecF [] fs) (expMain fs)
       | getName f == Ident "main" = getExp f
       | otherwise = expMain xs
 
+{-
+A avaliação de EIf é implementada de maneira semelhante ao SIf da função "execute" na linguagem imperativa.
+Enquanto na LI2 os termos "then" e "else" especificavam comandos a ser executados, na LF1 são expressions 
+que são avaliadas.
+
+A expressão ECall é avaliada procurando no contexto a função dada pelo seu identificador, e então a sua 
+expressão é avaliada levando em consideração seus parâmetros e as funções definidas no contexto.
+-}
 eval :: RContext -> Exp -> Valor
 eval context x = case x of
   ECon exp0 exp -> ValorStr (s (eval context exp0) ++ s (eval context exp))

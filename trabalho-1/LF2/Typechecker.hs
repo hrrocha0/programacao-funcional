@@ -52,6 +52,11 @@ tke tc exp tp =
                 )
         Erro msg -> Erro msg
 
+{-
+A lógica da verificação de tipos daa expressão ECall na LF2 é a mesma da LI2 tipada. Isso ocorre porque
+a verificação de tipos depende apenas do tipo de retorno e de seus parâmetros, que funcionam de maneira
+semelhante nas duas linguagens.
+-}
 tinf :: TContext -> Exp -> R Type
 tinf tc x = case x of
   ECon exp0 exp -> combChecks tc exp0 exp TStr
