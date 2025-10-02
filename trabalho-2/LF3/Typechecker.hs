@@ -86,27 +86,43 @@ tinf tc x = case x of
                           Erro msg -> Erro (msg ++ " na expressao: " ++ printTree eIf)
                   Erro msg -> Erro (msg ++ " na expressao: " ++ printTree eIf)
           Erro msg -> Erro (msg ++ " na expressao: " ++ printTree eIf)
-  {- TODO: 1)completar abaixo trocando undefined pelo retorno apropriado
-           2) explicar o argumento de tinf abaixo
+  {- 
+    TODO: 1) completar abaixo trocando undefined pelo retorno apropriado
+          2) explicar o argumento de tinf abaixo
+  -}
+  {-
+    A chamada de tinf abaixo verifica o tipo de retorno da expressão lambda a partir
+    dos tipos de seus parâmetros, dados por parameterTypeBindings.
   -}
   ELambda params exp -> case tinf (parameterTypeBindings ++ tc) exp of
-    OK tExp -> undefined
+    OK tExp -> OK (TFun tExp (map snd parameterTypeBindings))
     Erro msg -> Erro msg
     where
       parameterTypeBindings = map (\(Dec tp id) -> (id, tp)) params
 
-  {- TODO: 1)completar abaixo trocando undefined pelo retorno apropriado
-           2) fazer as explicacoes necessarias
+  {-
+    TODO: 1) completar abaixo trocando undefined pelo retorno apropriado
+          2) fazer as explicacoes necessarias
   -}
   ECall exp lexp -> case tinf tc exp of
     OK (TFun tR pTypes) ->
-      if length pTypes >= length lexp -- TODO explicar >=
+      -- TODO explicar >=
+      {-
+        A quantidade de parâmetros pode ser maior ou igual a de argumentos, uma vez
+        que a LF3 suporta aplicação parcial de funções.
+      -}
+      if length pTypes >= length lexp
         then
           if isThereError tksArgs /= []
             then Erro " @typechecker: tipo incompativel entre argumento e parametro"
             else
-              if length pTypes > length lexp -- TODO o que isso testa ?
-                then undefined
+              -- TODO o que isso testa ?
+              {-
+                A chamada abaixo testa se ocorre a aplicação parcial, quando há mais
+                parâmetros do que argumentos.
+              -}
+              if length pTypes > length lexp
+                then OK (TFun tR (drop (length lexp) pTypes))
                 else OK tR
         else Erro " @typechecker: mais argumentos que parametros"
       where
@@ -127,6 +143,10 @@ tinf tc x = case x of
     OK t -> Erro ("@typechecker: tipo deveria ser funcao em " ++ printTree exp ++ " tipo real: " ++ show t)
     Erro msg -> Erro msg
   -- TODO: o que esta sendo testando abaixo ?
+  {-
+    A expressão if abaixo testa se o tipo de retorno da expressão lambda exp2 é igual ao tipo do
+    parâmetro da expressão lambda exp1, condição necessária para a composição das funções.
+  -}
   EComp exp1 exp2 -> case (tinf tc exp1, tinf tc exp2) of
     (OK (TFun trExp1 tpsExp1), OK (TFun trExp2 tpsExp2)) ->
       if [trExp2] == tpsExp1
