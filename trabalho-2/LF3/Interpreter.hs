@@ -4,7 +4,14 @@
 module Interpreter where
 
 import AbsLF
-import AbsLFAux -- TODO: leia agora o conteudo desse arquivo (AbsLFAux.hs) e explique por que refatoramos assim
+
+-- TODO: leia agora o conteudo desse arquivo (AbsLFAux.hs) e explique por que refatoramos assim
+{-
+  As funções definidas em AbsLFAux.hs foram retiradas deste arquivo pois estão relacionadas diretamente à 
+  sintaxe abstrata da linguagem, e não a como ela é interpretada. Por isso, o conteúdo do novo arquivo é 
+  muito mais sensivel a mudanças na sintaxe concreta da linguagem.
+-}
+import AbsLFAux
 
 import Prelude hiding (lookup)
 
@@ -37,27 +44,52 @@ eval context x = case x of
       then eval context expT
       else eval context expE
   -- TODO: na linha abaixo, retorne um ValorFun contendo o lambda e saiba explicar a razao
-  lambda@(ELambda params exp) -> undefined
+  {-
+    A evaluação de uma expressão Elambda retorna um valor contendo a si própria porque sua
+    aplicaão depende dos argumentos fornecidos em sua chamada pela expressão ECall.
+  -}
+  lambda@(ELambda params exp) -> ValorFun lambda
   -- TODO: em EComp abaixo, troque undefined (2 ocorrencias) pela construcao apropriada
   EComp exp1 exp2 ->
     let (ValorFun exp1') = eval context exp1
-        (ValorFun exp2') = undefined
+        (ValorFun exp2') = eval context exp2
      in ValorFun
           ( ELambda
               (getParamsTypesL exp2')
-              (ECall undefined [ECall exp2' (getParamsExpL exp2')])
+              (ECall exp1' [ECall exp2' (getParamsExpL exp2')])
           )
-  {- TODO: em ECall abaixo, troque undefined (3 ocorrencias) pela construcao apropriada.
-     Dica: estude o codigo, buscando entender tambem as definicoes locais -}
+  {- 
+    TODO: em ECall abaixo, troque undefined (3 ocorrencias) pela construcao apropriada.
+    Dica: estude o codigo, buscando entender tambem as definicoes locais
+  -}
   ECall exp lexp ->
     if length lexp < length parameters
-      then ValorFun (ELambda undefined undefined) -- TODO: que caso eh esse ?
-      else eval (paramBindings ++ contextFunctions) exp' -- TODO: que caso eh esse ?
+      -- TODO: que caso eh esse ?
+      {-
+        Esse caso ocorre quando há aplicação parcial da função e retorna uma função
+        lambda para os parâmetros restantes.
+      -}
+      then ValorFun (ELambda params' exp')
+      -- TODO: que caso eh esse ?
+      {-
+        Esse caso ocorre quando há aplicação total da função e retorna o valor da
+        evaluação da expressão exp', definida abaixo.
+      -}
+      else eval (paramBindings ++ contextFunctions) exp'
     where
-      (ValorFun lambda) = eval context undefined
+      (ValorFun lambda) = eval context exp
       parameters = getParamsL lambda
       paramBindings = zip parameters (map (eval context) lexp)
+      {-
+        A definição abaixo contém os parâmetros que não foram fornecidos na aplicação
+        parcial da função.
+      -}
       params' = drop (length lexp) (getParamsTypesL lambda)
+      {-
+        A expressão abaixo é resultado da substituição das ocorrências dos parâmetros
+        pelos valores dos argumentos fornecidos na chamadas da função. A implementação
+        foi feita dessa forma porque o retorno da função pode ser uma função lambda.
+      -}
       exp' = subst paramBindings (getExpL lambda)
       contextFunctions =
         filter
@@ -67,35 +99,60 @@ eval context x = case x of
           )
           context
 
--- a função "subst" gera uma nova expressao a partir dos bindings em RContext
+-- a função "subst" gera uma nova expressao a partir dos bindings em RContext -- Linha 59
 subst :: RContext -> Exp -> Exp
 subst rc exp = case exp of
-  EVar id -> bind id rc -- TODO: por que eh implementado assim ?
+  -- TODO: por que eh implementado assim ?
+  {-
+    A implementação é feita dessa forma porque é possível que o contexto não
+    forneça um valor para a variável .
+  -}
+  EVar id -> bind id rc -- Linha 62
   -- TODO: explique a implementacao da linha abaixo
-  lambda@(ELambda paramsTypes exp) -> ELambda paramsTypes (subst (rc `diff` getParamsL lambda) exp)
-  ECall exp lexp -> ECall (subst rc exp) (map (subst rc) lexp)
-  EAdd exp0 exp -> EAdd (subst rc exp0) (subst rc exp)
+  {-
+    A linha abaixo substitui os valores da expressão exp, com exceção daqueles que
+    são parâmetros da expressão lambda.
+  -}
+  lambda@(ELambda paramsTypes exp) -> ELambda paramsTypes (subst (rc `diff` getParamsL lambda) exp) -- Linha 64
+  ECall exp lexp -> ECall (subst rc exp) (map (subst rc) lexp) -- Linha 65
+  EAdd exp0 exp -> EAdd (subst rc exp0) (subst rc exp) -- Linha 66
   -- TODO: nos casos abaixo, troque cada undefined pela construcao apropriada
-  EComp exp1 exp2 -> undefined
-  EIf expC expT expE -> undefined
-  ECon exp0 exp -> undefined
-  ESub exp0 exp -> undefined
-  EMul exp0 exp -> undefined
-  EDiv exp0 exp -> undefined
-  EOr exp0 exp -> undefined
-  EAnd exp0 exp -> undefined
-  ENot exp -> undefined
-  _ -> exp -- TODO: quais sao esses casos e por que sao implementados assim ?
+  EComp exp1 exp2 -> EComp (subst rc exp1) (subst rc exp2)
+  EIf expC expT expE -> EIf (subst rc expC) (subst rc expT) (subst rc expE)
+  ECon exp0 exp -> ECon (subst rc exp0) (subst rc exp)
+  ESub exp0 exp -> ESub (subst rc exp0) (subst rc exp)
+  EMul exp0 exp -> EMul (subst rc exp0) (subst rc exp)
+  EDiv exp0 exp -> EDiv (subst rc exp0) (subst rc exp)
+  EOr exp0 exp -> EOr (subst rc exp0) (subst rc exp)
+  EAnd exp0 exp -> EAnd (subst rc exp0) (subst rc exp)
+  ENot exp -> ENot (subst rc exp)
+  -- TODO: quais sao esses casos e por que sao implementados assim ?
+  {-
+    Os casos restantes são quando exp é um primitivo, logo não contém nenhuma variável e não há
+    nenhuma substituição a ser feita.
+  -}
+  _ -> exp
 
-{- TODO:
-  sobre a implementacao finalizada de subst:
-  1) qual eh o caso base?
-  2) como descrever o numero de casos recursivos? depende (in)diretamente de algo?
-  3) qual a finalidade dos casos recursivos?
-  4) por que a linha 64 eh diferente dos outros casos recursivos?
-  5) numa especificacao textual intuitiva e concisa (semelhante ao comentario na linha 59),
-     qual a linha mais importante entre 62-77 ?
-  6) Ha semelhanca de implementacao em relacao ao Optimizer.hs? Qual(is)?
+{- 
+  TODO: sobre a implementacao finalizada de subst:
+    1)  qual eh o caso base?
+    2)  como descrever o numero de casos recursivos? depende (in)diretamente de algo?
+    3)  qual a finalidade dos casos recursivos?
+    4)  por que a linha 64 eh diferente dos outros casos recursivos?
+    5)  numa especificacao textual intuitiva e concisa (semelhante ao comentario na linha 59),
+        qual a linha mais importante entre 62-77 ?
+    6)  Ha semelhanca de implementacao em relacao ao Optimizer.hs? Qual(is)?
+-}
+{-
+  1)  O caso base é quando exp é EVar.
+  2)  O número de casos recursivos depende do tipo de expressão de exp.
+  3)  A finalidade dos casos recursivos é realizar a substituição das ocorrências em expressões 
+      mais complexas.
+  4)  A linha 64 é diferente das demais porque uma expressão lambda contém parâmetros que não devem
+      ser substituídos.
+  5)  Entre as linhas 62 e 67, a mais importante é a linha 62: faz o bind de uma variável em RContext.
+  6)  A implementação recursiva é semelhante à função optimizeE do arquivo Optimizer.hs quando exp é
+      ECall, ELambda ou EComp.
 -}
 
 -- a função "diff" faz a diferença, tirando de RContext os mapeamentos envolvendo [Ident].
@@ -108,6 +165,10 @@ rc `diff` [] = rc
 
 -- a função bind retorna uma expressao contendo o valor do id no RContext, ou o proprio id.
 -- TODO: por que nao usamos o lookup no lugar de bind ?
+{-
+  A função bind é usada porque é possível que exp seja um parâmetro de uma função lambda. 
+  Nesse caso, o id não estaria ligado em RContext e a função lookup resultaria em erro.
+-}
 bind :: Ident -> RContext -> Exp
 bind id [] = EVar id -- retorna o proprio id se ele nao esta ligado em RContext
 bind id ((k, v) : kvs)
@@ -137,11 +198,16 @@ data Valor
       }
 
 instance Show Valor where
+  show :: Valor -> String
   show (ValorBool b) = show b
   show (ValorInt i) = show i
   show (ValorStr s) = s
-  show (ValorFun f) = show f -- TODO: por que essa linha funciona ?
-
+  -- TODO: por que essa linha funciona?
+  {-
+    A linha abaixo funciona porque f é uma expressão do tipo Exp, que contém
+    uma implementação base da função show (através da palavra-chave deriving).
+  -}
+  show (ValorFun f) = show f
 lookup :: RContext -> Ident -> Valor
 lookup ((i, v) : cs) s
   | i == s = v
@@ -153,7 +219,11 @@ update ((i, v) : cs) s nv
   | i == s = (i, nv) : cs
   | otherwise = (i, v) : update cs s nv
 
--- NOVO: TODO: explique a mudanca em updatecF
+-- TODO: explique a mudanca em updatecF
+{-
+  A função updatecF foi alterada porque ValorFun foi modificado para suportar
+  expressões lambda. Agora, contém uma lambda no lugar de uma função.
+-}
 updatecF :: RContext -> [Function] -> RContext
 updatecF c [] = c
 updatecF c (f : fs) =
