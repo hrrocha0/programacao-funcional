@@ -72,9 +72,9 @@ optimizeE exp = case exp of
           then wrapValueExpression (eval [] optEAnd)
           else optEAnd
   -- TODO: substitua os 3 undefineds abaixo pelo retorno apropriado
-  ECall exp lexp -> undefined
-  ELambda params exp -> undefined
-  EComp exp1 exp2 -> undefined
+  ECall exp lexp -> ECall (optimizeE exp) (map optimizeE lexp)
+  ELambda params exp -> ELambda params (optimizeE exp)
+  EComp exp1 exp2 -> EComp (optimizeE exp1) (optimizeE exp2)
   EIf exp expT expE ->
     let optExp = optimizeE exp
         optThen = optimizeE expT
