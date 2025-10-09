@@ -4,6 +4,7 @@
 module Interpreter where
 
 import AbsLF
+import PrintLF
 
 -- TODO: leia agora o conteudo desse arquivo (AbsLFAux.hs) e explique por que refatoramos assim
 {-
@@ -207,7 +208,8 @@ instance Show Valor where
     A linha abaixo funciona porque f é uma expressão do tipo Exp, que contém
     uma implementação base da função show (através da palavra-chave deriving).
   -}
-  show (ValorFun f) = show f
+  -- show (ValorFun f) = show f
+  show (ValorFun f) = (render . prt 0) f
 lookup :: RContext -> Ident -> Valor
 lookup ((i, v) : cs) s
   | i == s = v
