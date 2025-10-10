@@ -1,0 +1,9 @@
+int sum (int a, int b, (int, int) f) {
+    if (b - a + 1)
+        then f (a) + sum (a + 1, b, f)
+        else 0
+}
+
+(int, int -> int -> (int, int)) main () {
+    sum
+}

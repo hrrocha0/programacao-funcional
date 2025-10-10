@@ -1,0 +1,9 @@
+bool equals (int a, int b) {
+    if (b - a)
+        then false
+        else true
+}
+
+bool main () {
+    (<equals (0) . lambda int x1, int x2, int y1, int y2 -> x1 * x2 + y1 * y2>) (1, 0, 0, 1)
+}
