@@ -106,7 +106,7 @@ subst rc exp = case exp of
   -- TODO: por que eh implementado assim ?
   {-
     A implementação é feita dessa forma porque é possível que o contexto não
-    forneça um valor para a variável .
+    forneça um valor para a variável.
   -}
   EVar id -> bind id rc -- Linha 62
   -- TODO: explique a implementacao da linha abaixo
@@ -129,7 +129,7 @@ subst rc exp = case exp of
   ENot exp -> ENot (subst rc exp)
   -- TODO: quais sao esses casos e por que sao implementados assim ?
   {-
-    Os casos restantes são quando exp é um primitivo, logo não contém nenhuma variável e não há
+    Os casos restantes são quando exp é um literal, logo não contém nenhuma variável e não há
     nenhuma substituição a ser feita.
   -}
   _ -> exp
@@ -189,7 +189,9 @@ data Valor
       { i :: Integer
       }
   | ValorFun
-      { f :: Exp -- f :: Function  **NOVO TODO: Por que mudou ?
+      -- TODO: Por que mudou ?
+      -- O tipo de f mudou porque agora pode ser uma expressão lambda.
+      { f :: Exp -- f :: Function
       }
   | ValorStr
       { s :: String
@@ -209,7 +211,16 @@ instance Show Valor where
     uma implementação base da função show (através da palavra-chave deriving).
   -}
   -- show (ValorFun f) = show f
+<<<<<<< HEAD
   show (ValorFun f) = (render . prt 0) f
+=======
+  {- 
+    Utilizando o arquivo PrintLF.hs, é possível mostrar uma expressão lambda
+    de forma mais legível.
+  -}
+  show (ValorFun f) = (render . prt 0) f
+
+>>>>>>> 521457a6e5cd7a878c4c8023f71f163d0a69e55c
 lookup :: RContext -> Ident -> Valor
 lookup ((i, v) : cs) s
   | i == s = v
