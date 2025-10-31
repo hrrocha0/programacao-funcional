@@ -1,0 +1,18 @@
+int acc (int a, int b, (int, int -> int) f) {
+    if (b - a)
+        then f (acc (a, b - 1, f), b)
+        else a
+}
+
+/*
+    Ao renomear o parâmetro b da expressão lambda para n, o valor retornado não é o esperado.
+    Esperado: 120
+    Retornado: 625
+*/
+int fat (int n) {
+    acc (1, n, lambda int a, int b -> a * b)
+}
+
+int main () {
+    fat (5)
+}

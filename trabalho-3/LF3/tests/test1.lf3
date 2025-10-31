@@ -1,0 +1,15 @@
+int sum (int a, int b, (int, int) f) {
+    if (b - a + 1)
+        then f (a) + sum (a + 1, b, f)
+        else 0
+}
+
+int pow (int n, int a) {
+    if (n)
+        then a * pow (n - 1, a)
+        else 1
+}
+
+int main () {
+    sum (0, 5, pow (2))
+}
