@@ -1,101 +1,34 @@
 module Optimizer where
 
 import AbsLF
+
 import Interpreter
 
+import Data.Generics
+
 optimizeP :: Program -> Program
-optimizeP (Prog fs) = Prog (map optimizeF fs)
+optimizeP = everywhere (mkT optimizeE)
+  where
+    optimizeE :: Exp -> Exp
+    optimizeE exp@(EIf expC expT expE) =
+      case expC of
+        EInt n ->
+          if n /= 0
+            then expT
+            else expE
+        _ -> exp
+    optimizeE exp =
+      if isGroundE exp
+        then wrapValueExpression (eval [] exp)
+        else exp
 
-optimizeF :: Function -> Function
-optimizeF (Fun tR id decls exp) = Fun tR id decls (optimizeE exp)
-
-{-
-As chamadas de função ECall podem ser otimizadas ao otimizar recursivamente os seus parâmetros, quando 
-possível. A expressão da própria função é otimizada pela "optimizeF". Como a otimização não ocorre em tempo
-de execução, não possui acesso ao contexto e portanto não pode avaliar a expressão.
--}
-optimizeE :: Exp -> Exp
-optimizeE exp = case exp of
-  EStr str -> EStr str
-  ETrue -> ETrue
-  EFalse -> EFalse
-  EInt n -> EInt n
-  EVar id -> EVar id
-  ENot exp ->
-    let optExp = optimizeE exp
-        optENot = ENot optExp
-     in if isLiteral optExp
-          then wrapValueExpression (eval [] optENot)
-          else optENot
-  ECon exp0 exp ->
-    let optExp0 = optimizeE exp0
-        optExp = optimizeE exp
-        optECon = ECon optExp0 optExp
-     in if isLiteral optExp0 && isLiteral optExp
-          then wrapValueExpression (eval [] optECon)
-          else optECon
-  EAdd exp0 exp ->
-    let optExp0 = optimizeE exp0
-        optExp = optimizeE exp
-        optEAdd = EAdd optExp0 optExp
-     in if isLiteral optExp0 && isLiteral optExp
-          then wrapValueExpression (eval [] optEAdd)
-          else optEAdd
-  ESub exp0 exp ->
-    let optExp0 = optimizeE exp0
-        optExp = optimizeE exp
-        optESub = ESub optExp0 optExp
-     in if isLiteral optExp0 && isLiteral optExp
-          then wrapValueExpression (eval [] optESub)
-          else optESub
-  EMul exp0 exp ->
-    let optExp0 = optimizeE exp0
-        optExp = optimizeE exp
-        optEMul = EMul optExp0 optExp
-     in if isLiteral optExp0 && isLiteral optExp
-          then wrapValueExpression (eval [] optEMul)
-          else optEMul
-  EDiv exp0 exp ->
-    let optExp0 = optimizeE exp0
-        optExp = optimizeE exp
-        optEDiv = EDiv optExp0 optExp
-     in if isLiteral optExp0 && isLiteral optExp
-          then wrapValueExpression (eval [] optEDiv)
-          else optEDiv
-  EOr exp0 exp ->
-    let optExp0 = optimizeE exp0
-        optExp = optimizeE exp
-        optEOr = EOr optExp0 optExp
-     in if isLiteral optExp0 && isLiteral optExp
-          then wrapValueExpression (eval [] optEOr)
-          else optEOr
-  EAnd exp0 exp ->
-    let optExp0 = optimizeE exp0
-        optExp = optimizeE exp
-        optEAnd = EAnd optExp0 optExp
-     in if isLiteral optExp0 && isLiteral optExp
-          then wrapValueExpression (eval [] optEAnd)
-          else optEAnd
-  ECall id lexp -> ECall id (map optimizeE lexp)
-  EIf exp expT expE ->
-    let optExp = optimizeE exp
-        optThen = optimizeE expT
-        optElse = optimizeE expE
-        optEIf = EIf optExp optThen optElse
-     in case optExp of
-          EInt vExpIf ->
-            if vExpIf == 0
-              then optElse
-              else optThen
-          _ -> optEIf
-
-isLiteral :: Exp -> Bool
-isLiteral exp = case exp of
-  EStr _ -> True
-  ETrue -> True
-  EFalse -> True
-  EInt _ -> True
-  _ -> False
+isGroundE :: Exp -> Bool
+isGroundE = everything (&&) (True `mkQ` isGround)
+  where
+    isGround :: Exp -> Bool
+    isGround EVar {} = False
+    isGround ECall {} = False
+    isGround _ = True
 
 wrapValueExpression :: Valor -> Exp
 wrapValueExpression (ValorInt i) = EInt i
