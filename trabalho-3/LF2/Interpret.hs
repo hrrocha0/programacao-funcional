@@ -26,7 +26,6 @@ runProgram sourceCode = do
      in if any isError typeCheckResult
           then Bad (show $ filter isError typeCheckResult)
           else Ok (optimizeP ast)
-
   return (ast, opt, executeP opt)
 
 showProgram :: (Program, Program, Valor) -> String

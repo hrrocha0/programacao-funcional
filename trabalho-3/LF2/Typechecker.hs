@@ -1,155 +1,105 @@
 module Typechecker where
 
-import Prelude hiding (lookup)
-
 import AbsLF
 import PrintLF
+import ErrM
 
-data R a = OK a | Erro String
-  deriving (Eq, Ord, Show, Read)
-
-isError :: R a -> Bool
-isError e = case e of
-  OK _ -> False
-  Erro _ -> True
+import Data.Either
+import Prelude hiding (lookup)
 
 type TContext = [(Ident, Type)]
 
-typeCheckP :: Program -> [R TContext]
-typeCheckP (Prog fs) =
-  let nCtx = updatecF [] fs
-   in case nCtx of
-        OK ctx -> map (typeCheckF ctx) fs
-        Erro msg -> [Erro msg]
+isError :: Err a -> Bool
+isError = isLeft
 
-typeCheckF :: TContext -> Function -> R TContext
-typeCheckF tc (Fun tR _ decls exp) = tke (parameterTypeBindings ++ functionTypes) exp tR
+typeCheckP :: Program -> [Err TContext]
+typeCheckP (Prog fs) = case updatecF [] fs of
+  Ok ctx -> map (typeCheckF ctx) fs
+  Bad errorMessage -> [Bad errorMessage]
+
+typeCheckF :: TContext -> Function -> Err TContext
+typeCheckF tc (Fun rt _ decls exp) =
+  let parameterTypeBindings = map (\(Dec tp id) -> (id, tp)) decls
+      functionTypes = filter isFunction tc
+   in tke (parameterTypeBindings ++ functionTypes) exp rt
   where
-    parameterTypeBindings = map (\(Dec tp id) -> (id, tp)) decls
-    functionTypes =
-      filter
-        ( \(i, t) -> case t of
-            TFun _ _ -> True
-            _ -> False
+    isFunction :: (Ident, Type) -> Bool
+    isFunction (_, TFun _ _) = True
+    isFunction _ = False
+
+tke :: TContext -> Exp -> Type -> Err TContext
+tke tc exp t = do
+  t' <- tinf tc exp
+
+  if t == t'
+    then Ok tc
+    else
+      Bad
+        ( "@typechecker: a expressao "
+            ++ printTree exp
+            ++ " tem tipo "
+            ++ printTree t'
+            ++ " mas o tipo esperado eh "
+            ++ printTree t
         )
-        tc
 
-tke :: TContext -> Exp -> Type -> R TContext
-tke tc exp tp =
-  let r = tinf tc exp
-   in case r of
-        OK tipo ->
-          if tipo == tp
-            then OK tc
-            else
-              Erro
-                ( "@typechecker: a expressao "
-                    ++ printTree exp
-                    ++ " tem tipo "
-                    ++ printTree tipo
-                    ++ " mas o tipo esperado eh "
-                    ++ printTree tp
-                )
-        Erro msg -> Erro msg
+tinf :: TContext -> Exp -> Err Type
+tinf tc (EIf expC expT expE) = do
+  t <- tinf tc expT
+  tke tc expC Tint
+  tke tc expE t
+  return t
+tinf tc (EOr exp0 exp) = combChecks tc exp0 exp Tbool
+tinf tc (EAnd exp0 exp) = combChecks tc exp0 exp Tbool
+tinf tc (ENot exp) = do
+  tke tc exp Tbool
+  return Tbool
+tinf tc (ECon exp0 exp) = combChecks tc exp0 exp TStr
+tinf tc (EAdd exp0 exp) = combChecks tc exp0 exp Tint
+tinf tc (ESub exp0 exp) = combChecks tc exp0 exp Tint
+tinf tc (EMul exp0 exp) = combChecks tc exp0 exp Tint
+tinf tc (EDiv exp0 exp) = combChecks tc exp0 exp Tint
+tinf tc (ECall id lexp) = do
+  (TFun rt ts) <- lookup tc id
 
-{-
-A lógica da verificação de tipos daa expressão ECall na LF2 é a mesma da LI2 tipada. Isso ocorre porque
-a verificação de tipos depende apenas do tipo de retorno e de seus parâmetros, que funcionam de maneira
-semelhante nas duas linguagens.
--}
-tinf :: TContext -> Exp -> R Type
-tinf tc x = case x of
-  ECon exp0 exp -> combChecks tc exp0 exp TStr
-  EAdd exp0 exp -> combChecks tc exp0 exp Tint
-  ESub exp0 exp -> combChecks tc exp0 exp Tint
-  EMul exp0 exp -> combChecks tc exp0 exp Tint
-  EDiv exp0 exp -> combChecks tc exp0 exp Tint
-  EOr exp0 exp -> combChecks tc exp0 exp Tbool
-  EAnd exp0 exp -> combChecks tc exp0 exp Tbool
-  ENot exp ->
-    let r = tke tc exp Tbool
-     in case r of
-          OK _ -> OK Tbool
-          Erro msg -> Erro msg
-  EStr str -> OK TStr
-  ETrue -> OK Tbool
-  EFalse -> OK Tbool
-  EInt n -> OK Tint
-  EVar id -> lookup tc id
-  eIf@(EIf exp expT expE) ->
-    let r = tke tc exp Tint
-     in case r of
-          OK _ ->
-            let r2 = tinf tc expT
-             in case r2 of
-                  OK t ->
-                    let r3 = tke tc expE t
-                     in case r3 of
-                          OK _ -> r2
-                          Erro msg -> Erro msg
-                  Erro msg -> Erro msg
-          Erro msg -> Erro msg
-  ECall id lexp ->
-    let r = lookup tc id
-     in case r of
-          OK (TFun tR pTypes) ->
-            if length pTypes == length lexp
-              then
-                if isThereError tksArgs /= []
-                  then Erro " @typechecker: chamada de funcao invalida"
-                  else OK tR
-              else Erro " @typechecker: tamanhos diferentes de lista de argumentos e parametros"
-            where
-              tksArgs = zipWith (tke tc) lexp pTypes
-              isThereError l =
-                filter
-                  not
-                  ( map
-                      ( \e ->
-                          ( let r2 = e
-                             in case r2 of
-                                  OK _ -> True
-                                  Erro _ -> False
-                          )
-                      )
-                      l
-                  )
-          Erro msg -> Erro msg
+  let tksArgs = zipWith (tke tc) lexp ts
+   in if length ts == length lexp
+        then
+          if any isError tksArgs
+            then Bad " @typechecker: chamada de funcao invalida"
+            else Ok rt
+        else Bad "@typechecker: tamanhos diferentes de lista de argumentos e parametros"
+tinf tc (EInt _) = Ok Tint
+tinf tc (EVar id) = lookup tc id
+tinf tc (EStr _) = Ok TStr
+tinf tc ETrue = Ok Tbool
+tinf tc EFalse = Ok Tbool
 
-combChecks :: TContext -> Exp -> Exp -> Type -> R Type
-combChecks tc exp1 exp2 tp =
-  let r = tke tc exp1 tp
-   in case r of
-        OK _ ->
-          let r2 = tke tc exp2 tp
-           in case r2 of
-                OK _ -> OK tp
-                Erro msg -> Erro msg
-        Erro msg -> Erro msg
+combChecks :: TContext -> Exp -> Exp -> Type -> Err Type
+combChecks tc exp1 exp2 t = do
+  tke tc exp1 t
+  tke tc exp2 t
+  return t
 
-lookup :: TContext -> Ident -> R Type
-lookup [] id = Erro ("@typechecker: " ++ printTree id ++ " nao esta no contexto. ")
-lookup ((id, value) : cs) key
-  | id == key = OK value
-  | otherwise = lookup cs key
+lookup :: TContext -> Ident -> Err Type
+lookup [] i' = Bad ("@typechecker: " ++ printTree i' ++ " nao esta no contexto. ")
+lookup ((i, v) : cs) i'
+  | i == i' = Ok v
+  | otherwise = lookup cs i'
 
-updateTC :: TContext -> Ident -> Type -> R TContext
-updateTC [] id tp = OK [(id, tp)]
-updateTC ((id, tp) : idTps) idN tpN
-  | id == idN = Erro ("@typechecker: identificador" ++ printTree id ++ " nao pode ter mais de um tipo")
-  | otherwise =
-      let r = updateTC idTps idN tpN
-       in case r of
-            OK restOK -> OK ((id, tp) : restOK)
-            Erro msg -> Erro msg
+updateTC :: TContext -> Ident -> Type -> Err TContext
+updateTC [] i' v' = Ok [(i', v')]
+updateTC ((i, v) : cs) i' v'
+  | i == i' = Bad ("@typechecker: identificador" ++ printTree i ++ " nao pode ter mais de um tipo")
+  | otherwise = do
+      cs' <- updateTC cs i' v'
+      return ((i, v) : cs')
 
-getFunctionType :: Function -> Type
-getFunctionType (Fun tipoRetorno _ decls _) = TFun tipoRetorno (map (\(Dec tp _) -> tp) decls)
-
-updatecF :: TContext -> [Function] -> R TContext
-updatecF tc [] = OK tc
-updatecF tc (f@(Fun _ nomeF _ _) : fs) =
-  let r = updateTC tc nomeF (getFunctionType f)
-   in case r of
-        OK tcNew -> updatecF tcNew fs
-        Erro msg -> Erro msg
+updatecF :: TContext -> [Function] -> Err TContext
+updatecF tc [] = Ok tc
+updatecF tc (f@(Fun _ id _ _) : fs) = do
+  tc' <- updateTC tc id (getFunctionType f)
+  updatecF tc' fs
+  where
+    getFunctionType :: Function -> Type
+    getFunctionType (Fun rt _ decls _) = TFun rt (map (\(Dec t _) -> t) decls)

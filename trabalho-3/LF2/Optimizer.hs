@@ -26,8 +26,8 @@ isGroundE :: Exp -> Bool
 isGroundE = everything (&&) (True `mkQ` isGround)
   where
     isGround :: Exp -> Bool
-    isGround EVar {} = False
-    isGround ECall {} = False
+    isGround (EVar _) = False
+    isGround (ECall _ _) = False
     isGround _ = True
 
 wrapValueExpression :: Valor -> Exp
