@@ -1,11 +1,9 @@
-int main () {
-    fib (10)
+String main () {
+    greet ("LF2")
 }
 
-int fib (int n) {
-    if (n)
-        then if (n - 1)
-            then fib (n - 1) + fib (n - 2)
-            else 1
-        else 1
+String greet (String name) {
+    if (1)
+        then "Hello, " ++ name ++ "!"
+        else "ERROR"
 }

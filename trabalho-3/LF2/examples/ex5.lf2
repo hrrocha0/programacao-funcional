@@ -1,9 +1,0 @@
-String main () {
-    greet ("LF2")
-}
-
-String greet (String name) {
-    if (1)
-        then "Hello, " ++ name ++ "!"
-        else "ERROR"
-}

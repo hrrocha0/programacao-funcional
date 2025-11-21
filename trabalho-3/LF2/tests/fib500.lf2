@@ -1,0 +1,11 @@
+int main () {
+    fib (500)
+}
+
+int fib (int n) {
+    if (n - 1)
+        then if (n - 2)
+            then fib (n - 2) + fib (n - 1)
+            else 1
+        else 1
+}

@@ -19,7 +19,7 @@ optimizeP = everywhere (mkT optimizeE)
         _ -> exp
     optimizeE exp =
       if isGroundE exp
-        then wrapValueExpression (eval [] exp)
+        then wrapValueExpression (fst $ eval ([], []) exp)
         else exp
 
 isGroundE :: Exp -> Bool
