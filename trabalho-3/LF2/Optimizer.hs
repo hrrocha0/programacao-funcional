@@ -1,6 +1,7 @@
 module Optimizer where
 
 import AbsLF
+import ErrM
 
 import Interpreter
 
@@ -18,9 +19,10 @@ optimizeP = everywhere (mkT optimizeE)
             else expE
         _ -> exp
     optimizeE exp =
-      if isGroundE exp
-        then wrapValueExpression (fst $ eval ([], []) exp)
-        else exp
+      let (Ok v) = fst <$> eval ([], []) exp
+       in if isGroundE exp
+            then wrapValueExpression v
+            else exp
 
 isGroundE :: Exp -> Bool
 isGroundE = everything (&&) (True `mkQ` isGround)
