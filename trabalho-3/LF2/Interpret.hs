@@ -18,7 +18,7 @@ main = do
 calc :: [Char] -> String
 calc sourceCode = either id showProgram (runProgram sourceCode)
 
-runProgram :: [Char] -> Err (Program, Program, Err Valor)
+runProgram :: [Char] -> Err (Program, Program, Valor)
 runProgram sourceCode = do
   ast <- pProgram (myLexer sourceCode)
   opt <-
@@ -28,7 +28,7 @@ runProgram sourceCode = do
           else Ok (optimizeP ast)
   return (ast, opt, executeP opt)
 
-showProgram :: (Program, Program, Err Valor) -> String
+showProgram :: (Program, Program, Valor) -> String
 showProgram (ast, opt, rv) =
   ">>>>>>> Programa original:<<<<<<< \n"
     ++ printTree ast
@@ -37,4 +37,4 @@ showProgram (ast, opt, rv) =
     ++ printTree opt
     ++ "\n"
     ++ ">>>>>>> Resultado da execucao:<<<<<<< \n"
-    ++ either show show rv
+    ++ show rv

@@ -2,9 +2,9 @@ module Interpreter where
 
 import AbsLF
 import AbsLFAux
-import PrintLF
+import Control.Monad.State
 import ErrM
-
+import PrintLF
 import Prelude hiding (lookup)
 
 data Valor
@@ -23,113 +23,102 @@ instance Show Valor where
 
 data FunCall = FunCall Ident [Valor] deriving (Eq, Show)
 
-type RContext = [(Ident, Valor)]
+type Context a = [(a, Valor)]
 
-type FContext = [(FunCall, Valor)]
+type RContext = Context Ident
 
-type Context = (RContext, FContext)
+type FContext = Context FunCall
 
-executeP :: Program -> Err Valor
-executeP (Prog fs) = fst <$> eval (updatecF [] fs, []) (expMain fs)
+executeP :: Program -> Valor
+executeP (Prog fs) = let result = eval (updatecF [] fs) (expMain fs) in evalState result []
   where
     expMain :: [Function] -> Exp
     expMain (f : fs')
       | getName f == Ident "main" = getExp f
       | otherwise = expMain fs'
 
-eval :: Context -> Exp -> Err (Valor, FContext)
-eval (rctx, fctx) (EIf expC expT expE) = do
-  (v1, fctx1) <- eval (rctx, fctx) expC
+eval :: RContext -> Exp -> State FContext Valor
+eval ctx (EIf expC expT expE) = do
+  v1 <- i <$> eval ctx expC
 
-  if i v1 /= 0
-    then eval (rctx, fctx1) expT
-    else eval (rctx, fctx1) expE
-eval (rctx, fctx) (EOr exp0 exp) = do
-  (v1, fctx1) <- eval (rctx, fctx) exp0
-  (v2, fctx2) <- eval (rctx, fctx1) exp
-  return (ValorBool (b v1 || b v2), fctx2)
-eval (rctx, fctx) (EAnd exp0 exp) = do
-  (v1, fctx1) <- eval (rctx, fctx) exp0
-  (v2, fctx2) <- eval (rctx, fctx1) exp
-  return (ValorBool (b v1 && b v2), fctx2)
-eval (rctx, fctx) (ENot exp) = do
-  (v1, fctx1) <- eval (rctx, fctx) exp
-  return (ValorBool (not $ b v1), fctx1)
-eval (rctx, fctx) (ECon exp0 exp) = do
-  (v1, fctx1) <- eval (rctx, fctx) exp0
-  (v2, fctx2) <- eval (rctx, fctx1) exp
-  return (ValorStr (s v1 ++ s v2), fctx2)
-eval (rctx, fctx) (EAdd exp0 exp) = do
-  (v1, fctx1) <- eval (rctx, fctx) exp0
-  (v2, fctx2) <- eval (rctx, fctx1) exp
-  return (ValorInt (i v1 + i v2), fctx2)
-eval (rctx, fctx) (ESub exp0 exp) = do
-  (v1, fctx1) <- eval (rctx, fctx) exp0
-  (v2, fctx2) <- eval (rctx, fctx1) exp
-  return (ValorInt (i v1 - i v2), fctx2)
-eval (rctx, fctx) (EMul exp0 exp) = do
-  (v1, fctx1) <- eval (rctx, fctx) exp0
-  (v2, fctx2) <- eval (rctx, fctx1) exp
-  return (ValorInt (i v1 * i v2), fctx2)
-eval (rctx, fctx) (EDiv exp0 exp) = do
-  (v1, fctx1) <- eval (rctx, fctx) exp0
-  (v2, fctx2) <- eval (rctx, fctx1) exp
-  return (ValorInt (i v1 `div` i v2), fctx2)
-eval (rctx, fctx) (ECall id lexp) = do
-  (ValorFun funDef) <- lookup rctx id
-  (args, fctx') <- evalArgs (rctx, fctx) lexp
+  if v1 /= 0
+    then eval ctx expT
+    else eval ctx expE
+eval ctx (EOr exp0 exp) = do
+  v1 <- b <$> eval ctx exp0
+  v2 <- b <$> eval ctx exp
+  return $ ValorBool (v1 || v2)
+eval ctx (EAnd exp0 exp) = do
+  v1 <- b <$> eval ctx exp0
+  v2 <- b <$> eval ctx exp
+  return $ ValorBool (v1 && v2)
+eval ctx (ENot exp) = do
+  v1 <- b <$> eval ctx exp
+  return $ ValorBool (not v1)
+eval ctx (ECon exp0 exp) = do
+  v1 <- s <$> eval ctx exp0
+  v2 <- s <$> eval ctx exp
+  return $ ValorStr (v1 ++ v2)
+eval ctx (EAdd exp0 exp) = do
+  v1 <- i <$> eval ctx exp0
+  v2 <- i <$> eval ctx exp
+  return $ ValorInt (v1 + v2)
+eval ctx (ESub exp0 exp) = do
+  v1 <- i <$> eval ctx exp0
+  v2 <- i <$> eval ctx exp
+  return $ ValorInt (v1 - v2)
+eval ctx (EMul exp0 exp) = do
+  v1 <- i <$> eval ctx exp0
+  v2 <- i <$> eval ctx exp
+  return $ ValorInt (v1 * v2)
+eval ctx (EDiv exp0 exp) = do
+  v1 <- i <$> eval ctx exp0
+  v2 <- i <$> eval ctx exp
+  return $ ValorInt (v1 `div` v2)
+eval ctx (ECall id lexp) = do
+  args <- evalArgs ctx lexp
+  fctx <- get
 
-  let funCall = FunCall id args
-      parameterBindings = zip (getParams funDef) args
-      contextFunctions = filter isFunction rctx
-   in case lookupMemo fctx' funCall of
-        Just rv -> return (rv, fctx')
-        Nothing -> memoize funCall <$> eval (parameterBindings ++ contextFunctions, fctx') (getExp funDef)
+  let (Just funDef) = f <$> lookup ctx id
+      funCall = FunCall id args
+      paramBindings = zip (getParams funDef) args
+      contextFunctions = filter isFunction ctx
+   in case lookup fctx funCall of
+        Just v -> return v
+        Nothing -> eval (paramBindings ++ contextFunctions) (getExp funDef) >>= memoize funCall
   where
-    evalArgs :: Context -> [Exp] -> Err ([Valor], FContext)
-    evalArgs (_, fctx) [] = Ok ([], fctx)
-    evalArgs (rctx, fctx) (e : es) = do
-      (v, fctx1) <- eval (rctx, fctx) e
-      (vs, fctx2) <- evalArgs (rctx, fctx1) es
-      return (v : vs, fctx2)
+    evalArgs :: RContext -> [Exp] -> State FContext [Valor]
+    evalArgs _ [] = return []
+    evalArgs ctx (e : es) = do
+      v <- eval ctx e
+      vs <- evalArgs ctx es
+      return (v : vs)
 
     isFunction :: (Ident, Valor) -> Bool
     isFunction (_, ValorFun _) = True
     isFunction _ = False
 
-    memoize :: FunCall -> (Valor, FContext) -> (Valor, FContext)
-    memoize fc (rv, fctx) = (rv, updateMemo fctx fc rv)
-eval (rctx, fctx) (EVar id) = do
-  v <- lookup rctx id
-  return (v, fctx)
-eval (_, fctx) (EInt n) = Ok (ValorInt n, fctx)
-eval (_, fctx) (EStr s) = Ok (ValorStr s, fctx)
-eval (_, fctx) ETrue = Ok (ValorBool True, fctx)
-eval (_, fctx) EFalse = Ok (ValorBool False, fctx)
+    memoize :: FunCall -> Valor -> State FContext Valor
+    memoize fc v = do
+      modify (\fctx -> update fctx fc v)
+      return v
+eval ctx (EVar id) = let (Just v) = lookup ctx id in return v
+eval _ (EInt n) = return $ ValorInt n
+eval _ (EStr s) = return $ ValorStr s
+eval _ ETrue = return $ ValorBool True
+eval _ EFalse = return $ ValorBool False
 
-lookup :: RContext -> Ident -> Err Valor
-lookup [] id' = Bad ("@interpreter: " ++ printTree id' ++ " nao esta no contexto. ")
-lookup ((id, v) : cs) id'
-  | id == id' = Ok v
-  | otherwise = lookup cs id'
+lookup :: (Eq a) => Context a -> a -> Maybe Valor
+lookup [] _ = Nothing
+lookup ((k, v) : cs) k'
+  | k == k' = Just v
+  | otherwise = lookup cs k'
 
-lookupMemo :: FContext -> FunCall -> Maybe Valor
-lookupMemo [] _ = Nothing
-lookupMemo ((fc, v) : cs) fc'
-  | fc == fc' = Just v
-  | otherwise = lookupMemo cs fc'
-
-update :: RContext -> Ident -> Valor -> RContext
-update [] id' v' = [(id', v')]
-update ((id, v) : cs) id' v'
-  | id == id' = (id', v') : cs
-  | otherwise = (id, v) : update cs id' v'
-
-updateMemo :: FContext -> FunCall -> Valor -> FContext
-updateMemo [] fc' v' = [(fc', v')]
-updateMemo ((fc, v) : cs) fc' v'
-  | fc == fc' = (fc', v') : cs
-  | otherwise = (fc, v) : updateMemo cs fc' v'
+update :: (Eq a) => Context a -> a -> Valor -> Context a
+update [] k' v' = [(k', v')]
+update ((k, v) : cs) k' v'
+  | k == k' = (k', v') : cs
+  | otherwise = (k, v) : update cs k' v'
 
 updatecF :: RContext -> [Function] -> RContext
 updatecF = foldl (\ctx f -> update ctx (getName f) (ValorFun f))

@@ -5,6 +5,7 @@ import ErrM
 
 import Interpreter
 
+import Control.Monad.State
 import Data.Generics
 
 optimizeP :: Program -> Program
@@ -19,7 +20,7 @@ optimizeP = everywhere (mkT optimizeE)
             else expE
         _ -> exp
     optimizeE exp =
-      let (Ok v) = fst <$> eval ([], []) exp
+      let v = evalState (eval [] exp) []
        in if isGroundE exp
             then wrapValueExpression v
             else exp
