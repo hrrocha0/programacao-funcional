@@ -2,9 +2,11 @@ module Interpreter where
 
 import AbsLF
 import AbsLFAux
-import Control.Monad.State
-import ErrM
 import PrintLF
+import ErrM
+
+import Control.Monad.State
+import Data.List hiding (lookup)
 import Prelude hiding (lookup)
 
 data Valor
@@ -29,15 +31,17 @@ type RContext = Context Ident
 
 type FContext = Context FunCall
 
-executeP :: Program -> Valor
-executeP (Prog fs) = let result = eval (updatecF [] fs) (expMain fs) in evalState result []
-  where
-    expMain :: [Function] -> Exp
-    expMain (f : fs')
-      | getName f == Ident "main" = getExp f
-      | otherwise = expMain fs'
+type EvalResult = State FContext Valor
 
-eval :: RContext -> Exp -> State FContext Valor
+executeP :: Program -> Err Valor
+executeP (Prog fs) = case find (\f -> getName f == Ident "main") fs of
+  Just f ->
+    let ctx = updatecF [] fs
+        exp = getExp f
+     in Ok $ evalState (eval ctx exp) []
+  Nothing -> Bad "@interpreter: a funcao main nao foi encontrada"
+
+eval :: RContext -> Exp -> EvalResult
 eval ctx (EIf expC expT expE) = do
   v1 <- i <$> eval ctx expC
 
